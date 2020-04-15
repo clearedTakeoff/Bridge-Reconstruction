@@ -21,9 +21,13 @@ class LazManipulator:
     # Expects new_points to be a nested list where each entry/line consists of 10 parameters:
     # [x, y, z, intensity, bit_fiels, classification, scan_angle_rank, user_data, point_source_id, gps_time]
     def writeListToFile(self, new_points, name="output.laz"):
-        for entry in new_points:
-            new_point = np.array(tuple(entry), dtype=self.dt)
-            self.points = np.append(self.points, new_point)
+        #for entry in new_points:
+            #new_point = np.array(tuple(entry), dtype=self.dt)
+        #    self.points = np.append(self.points, entry)
+        #    print("New point")
+        numpy_array = np.array(new_points, dtype=self.dt)
+        self.points = np.append(self.points, numpy_array)
+        print("End for")
         self.laz.points = self.points
         self.laz.write(name)
 
