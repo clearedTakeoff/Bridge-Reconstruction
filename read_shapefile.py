@@ -13,7 +13,7 @@ class ShapefileReader:
             # Only extract shapeRecord entries of bridges (tipobj 3), limit also by coordinates??
             if entry.record["TIPOBJ_CES"] == 3:
                 self.bridges.append(entry)
-        print(len(self.bridges))
+        # print(len(self.bridges))
 
     # Returns bridges inside coordinates bound between points (lowX, lowY) and (highX, highY)
     def bridgesInsideCoords(self, lowX, lowY, highX, highY):
@@ -22,11 +22,11 @@ class ShapefileReader:
             if lowX <= bridge.shape.bbox[0] <= highX and lowY <= bridge.shape.bbox[1] <= highY\
                     and lowX <= bridge.shape.bbox[2] <= highX and lowY <= bridge.shape.bbox[3] <= highY:
                 bridges.append(bridge)
-        print("Found", len(bridges), "bridges")
+        # print("Found", len(bridges), "bridges")
         return bridges
 
-    def writeBridges(self, lowX, lowY, highX, highY):
-        sf = shapefile.Writer("CESTE_SHORT")
+    def writeBridges(self, lowX, lowY, highX, highY, output):
+        sf = shapefile.Writer(output)
         sf.fields = self.sf.fields[1:]
         for bridge in self.sf.iterShapeRecords():
             if lowX <= bridge.shape.bbox[0] <= highX and lowY <= bridge.shape.bbox[1] <= highY\

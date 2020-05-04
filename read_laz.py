@@ -27,9 +27,18 @@ class LazManipulator:
         #    print("New point")
         numpy_array = np.array(new_points, dtype=self.dt)
         self.points = np.append(self.points, numpy_array)
-        print("End for")
         self.laz.points = self.points
         self.laz.write(name)
 
+    def filterPoints(self, min_x, min_y, max_x, max_y):
+        result = []
+        for pnt in self.points:
+            if min_x <= pnt[0] <= max_x and min_y <= pnt[1] <= max_y:
+                result.append(pnt)
+        return result
+
 if __name__ == "__main__":
-    LazManipulator("GK_430_136.laz")
+    l = LazManipulator("TM_462_101.laz")
+    tmp = l.filterPoints(46200403, 10107873, 46206213, 10115060)
+    l.points = tmp
+    l.writeListToFile(tmp, "TM_462_101_short2.laz")
