@@ -11,8 +11,8 @@ class BridgeReconstructor:
         shp = ShapefileReader(shp_file)
         self.bridges_shp = shp.bridgesInsideCoords(self.laz.x_min, self.laz.y_min, self.laz.x_max, self.laz.y_max)
         self.bridges = [Bridge(br) for br in self.bridges_shp]
-        #shp.writeBridges(self.laz.x_min, self.laz.y_min, self.laz.x_max, self.laz.y_max, "CESTE_SHORT2")
-        #self.points = self.getRelevantLazPoints(self.bridges, self.laz.laz)
+        # shp.writeBridges(self.laz.x_min, self.laz.y_min, self.laz.x_max, self.laz.y_max, "CESTE_SHORT2")
+        # self.points = self.getRelevantLazPoints(self.bridges_shp, self.laz.laz)
         self.points = self.getRelevantLazPoint2(self.bridges, self.laz.laz)
         for br in self.bridges:
             print("Found", len(br.points), "points")
@@ -91,13 +91,12 @@ class BridgeReconstructor:
                 point_a, point_c = self.findThirdPoint(point_a[0], point_a[1], point_b[0], point_b[1], width / 2)
                 point_b = [point_a[0] + unit_vector[0] * magnitude * 2, point_a[1] + unit_vector[1] * magnitude * 2]
                 # Search for points along one side of the bridge
-                test = self.findPointsUnderBridge(point_a, point_b, self.bridges[_i].points, depth)
+                left_side = self.findPointsUnderBridge(point_a, point_b, self.bridges[_i].points, depth)
                 point_b = [point_c[0] + unit_vector[0] * magnitude * 2, point_c[1] + unit_vector[1] * magnitude * 2]
                 # Search along the other side of bridge
-                test2 = self.findPointsUnderBridge(point_c, point_b, self.bridges[_i].points, depth)
+                right_side = self.findPointsUnderBridge(point_c, point_b, self.bridges[_i].points, depth)
                 interpolated_points = []
-                z_values = {}
-                # test.extend(test2)
+
                 # TESTING THIS DELETE later (or not???)
                 point_a = list(bridge.shape.points[i]) + [bridge.shape.z[i]]
                 point_a = [x * 100 for x in point_a]
@@ -107,14 +106,22 @@ class BridgeReconstructor:
                 point_b = [point_a[0] + unit_vector[0] * magnitude, point_a[1] + unit_vector[1] * magnitude]
                 points_under_bridge = [pnt for pnt in self.bridges[_i].points if
                                        self.isInsideRect(point_a, point_b, point_c, [pnt[0], pnt[1]])]
-                for point in test:
-                    for point2 in test2:
+
+                for point in left_side:
+                    for point2 in right_side:
                         dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
-                        if abs(point[2] - point2[2]) < 10 and 0 < dist < width + 150:
-                            new_points = self.interpolate(point, point2)
-                            for j in new_points:
-                                z_values[(round(j[0]), round(j[1]))] = j[2]
-                            interpolated_points.extend(self.interpolate(point, point2))
+                        if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 150:
+                            point1 = None
+                            #for pnt in test:
+                            #    if self.distance(point, pnt) < 100 and pnt != point:
+                            #        point1 = pnt
+                            #        break
+                            point3 = None
+                            #for pnt in test2:
+                            #    if self.distance(point2, pnt) < 100 and pnt != point2:
+                            #        point3 = pnt
+                            #        break
+                            interpolated_points.extend(self.interpolate(point1, point, point2, point3))
                 print("Interpolated")
                 for point in points_under_bridge:
                     max_z = 0
@@ -177,7 +184,7 @@ class BridgeReconstructor:
         print("Construction finished, writing...")
         self.laz.writeListToFile(added_points, "test.laz")
 
-    def interpolate(self, point_a, point_b):
+    def interpolate(self, point_0, point_a, point_b, point_1):
         result = []
         new_point = [point_a[0], point_a[1], point_a[2]]
         vector = [point_b[0] - point_a[0], point_b[1] - point_a[1]]
@@ -188,7 +195,10 @@ class BridgeReconstructor:
         while t < magnitude:
             # new_point[0] += t * vector[0]
             # new_point[1] += t * vector[1]
-            tmp = self.cosInterpolate(point_a, point_b, t / magnitude)
+            if point_0 is not None and point_1 is not None:
+                tmp = self.hermiteInterpolate(point_0, point_a, point_b, point_1, t / magnitude)
+            else:
+                tmp = self.cosInterpolate(point_a, point_b, t / magnitude)
             result.append(tuple(tmp))
             #result.append((new_point[0] + t * vector[0], new_point[1] + t * vector[1], new_point[2]))
             t += step
@@ -200,6 +210,35 @@ class BridgeReconstructor:
         new_py = (p1[1] * (1 - t2) + p2[1] * t2)
         new_pz = (p1[2] * (1 - t2) + p2[2] * t2)
         return [new_px, new_py, new_pz]
+
+    def hermiteInterpolate(self, p1, p2, p3, p4, t, tension=0, bias=0):
+        t3 = t * t * t
+        t2 = t * t
+        # p3 - p1
+        p2_p1 = [np.float64(p2[0] - p1[0]), np.float64(p2[1] - p1[1]), np.float64(p2[2] - p1[2])]
+        p3_p2 = [np.float64(p3[0] - p2[0]), np.float64(p3[1] - p2[1]), np.float64(p3[2] - p2[2])]  # p3 - p2
+        p4_p3 = [p4[0] - p3[0], p4[1] - p3[1], p4[2] - p3[2]]  # p4 - p3
+        print(p2_p1[0] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[0] * (1 + bias) * (1 - tension) * 0.5)
+        m0 = [p2_p1[0] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[0] * (1 + bias) * (1 - tension) * 0.5,
+              p2_p1[1] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[1] * (1 + bias) * (1 - tension) * 0.5,
+              p2_p1[2] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[2] * (1 + bias) * (1 - tension) * 0.5]
+        m1 = [p2_p1[0] * (1 + bias) * (1 - tension) * 0.5 + p4_p3[0] * (1 + bias) * (1 - tension) * 0.5,
+              p2_p1[1] * (1 + bias) * (1 - tension) * 0.5 + p4_p3[1] * (1 + bias) * (1 - tension) * 0.5,
+              p2_p1[2] * (1 + bias) * (1 - tension) * 0.5 + p4_p3[2] * (1 + bias) * (1 - tension) * 0.5]
+
+        f1 = 2 * t3 - 3 * t2 + 1
+        f2 = -(2 * t3) + 3 * t2
+        f3 = t3 - 2 * t2 + t
+        f4 = t3 - t2
+        print(m0)
+        print(m1)
+        result = [f1 * p2[0] + f2 * m0[0] + f3 * m1[0] + f4 * p3[0],
+                  f1 * p2[1] + f2 * m0[1] + f3 * m1[1] + f4 * p3[1],
+                  f1 * p2[2] + f2 * m0[2] + f3 * m1[2] + f4 * p3[2]]
+        print("Result", result)
+        print(type(result[0]))
+        return result
+
 
     def findThirdPoint(self, x0, y0, x1, y1, width):
         magnitude = math.sqrt((x0 - x1) * (x0 - x1) + (y0 - y1) * (y0 - y1))

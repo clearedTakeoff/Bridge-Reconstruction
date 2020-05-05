@@ -14,7 +14,7 @@ class Bridge:
                                                          point_a[1] - 150 * unit_vector[1],
                                                          point_b[0], point_b[1],
                                                          (bridge_shp.record["SIRCES"] + 5) * 100)
-        point_b = [point_a[0] + unit_vector[0] * magnitude, point_a[1] + unit_vector[1] * magnitude]
+        point_b = [self.point_a[0] + unit_vector[0] * magnitude * 1, self.point_a[1] + unit_vector[1] * magnitude * 1]
         self.point_b = [point_b[0] + 150 * unit_vector[0], point_b[1] + 150 * unit_vector[1]]
         self.points = []
 
