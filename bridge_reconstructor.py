@@ -122,33 +122,51 @@ class BridgeReconstructor:
                         dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
                         if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 150:
                             point1 = None
-                            #for pnt in test:
-                            #    if self.distance(point, pnt) < 100 and pnt != point:
-                            #        point1 = pnt
-                            #        break
+                            dst1 = 999999999
+                            for pnt in left_side_1:
+                                dst = self.distance(point, pnt)
+                                if dst1 > dst > 0 and pnt != point:
+                                    point1 = pnt
+                                    dst1 = dst
+
                             point3 = None
-                            #for pnt in test2:
-                            #    if self.distance(point2, pnt) < 100 and pnt != point2:
-                            #        point3 = pnt
-                            #        break
+                            dst3 = 999999999
+                            for pnt in right_side_1:
+                                dst = self.distance(point2, pnt)
+                                if 0 < dst < dst3 and pnt != point2:
+                                    point3 = pnt
+                                    dst3 = dst
+                            if self.distance(point, point2) > self.distance(point1, point2):
+                                tmp = point
+                                point = point1
+                                point1 = tmp
                             interpolated_points.extend(self.interpolate(point1, point, point2, point3))
+                print("Interpolating 1 done")
                 for point in left_side_2:
                     for point2 in right_side_2:
                         dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
                         if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 150:
                             point1 = None
-                            #for pnt in test:
-                            #    if self.distance(point, pnt) < 100 and pnt != point:
-                            #        point1 = pnt
-                            #        break
+                            dst1 = 999999999
+                            for pnt in left_side_2:
+                                dst = self.distance(point, pnt)
+                                if dst1 > dst > 0 and pnt != point:
+                                    point1 = pnt
+                                    dst1 = dst
+
                             point3 = None
-                            #for pnt in test2:
-                            #    if self.distance(point2, pnt) < 100 and pnt != point2:
-                            #        point3 = pnt
-                            #        break
+                            dst3 = 999999999
+                            for pnt in right_side_2:
+                                dst = self.distance(point2, pnt)
+                                if 0 < dst < dst3 and pnt != point2:
+                                    point3 = pnt
+                                    dst3 = dst
+                            if self.distance(point, point2) > self.distance(point1, point2):
+                                tmp = point
+                                point = point1
+                                point1 = tmp
                             interpolated_points.extend(self.interpolate(point1, point, point2, point3))
 
-                print("Interpolated")
                 for point in points_under_bridge:
                     max_z = 0
                     # z_limits = [pnt[2] for pnt in interpolated_points if math.sqrt((pnt[0] - point[0]) ** 2 +
@@ -245,10 +263,10 @@ class BridgeReconstructor:
         t3 = t * t * t
         t2 = t * t
         # p3 - p1
-        p2_p1 = [np.float64(p2[0] - p1[0]), np.float64(p2[1] - p1[1]), np.float64(p2[2] - p1[2])]
-        p3_p2 = [np.float64(p3[0] - p2[0]), np.float64(p3[1] - p2[1]), np.float64(p3[2] - p2[2])]  # p3 - p2
+        p2_p1 = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]]
+        p3_p2 = [p3[0] - p2[0], p3[1] - p2[1], p3[2] - p2[2]]  # p3 - p2
         p4_p3 = [p4[0] - p3[0], p4[1] - p3[1], p4[2] - p3[2]]  # p4 - p3
-        print(p2_p1[0] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[0] * (1 + bias) * (1 - tension) * 0.5)
+
         m0 = [p2_p1[0] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[0] * (1 + bias) * (1 - tension) * 0.5,
               p2_p1[1] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[1] * (1 + bias) * (1 - tension) * 0.5,
               p2_p1[2] * (1 + bias) * (1 - tension) * 0.5 + p3_p2[2] * (1 + bias) * (1 - tension) * 0.5]
@@ -257,16 +275,14 @@ class BridgeReconstructor:
               p2_p1[2] * (1 + bias) * (1 - tension) * 0.5 + p4_p3[2] * (1 + bias) * (1 - tension) * 0.5]
 
         f1 = 2 * t3 - 3 * t2 + 1
-        f2 = -(2 * t3) + 3 * t2
-        f3 = t3 - 2 * t2 + t
-        f4 = t3 - t2
-        print(m0)
-        print(m1)
+        f2 = t3 - 2 * t2 + t
+        f3 = t3 - t2
+        f4 = -2 * t3 + 3 * t2
+
         result = [f1 * p2[0] + f2 * m0[0] + f3 * m1[0] + f4 * p3[0],
                   f1 * p2[1] + f2 * m0[1] + f3 * m1[1] + f4 * p3[1],
                   f1 * p2[2] + f2 * m0[2] + f3 * m1[2] + f4 * p3[2]]
-        print("Result", result)
-        print(type(result[0]))
+        # print("Result", result)
         return result
 
 
