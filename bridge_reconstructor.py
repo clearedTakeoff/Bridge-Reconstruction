@@ -97,22 +97,27 @@ class BridgeReconstructor:
                 # lowest z found (water surface)
                 left_side, left_z1 = self.findPointsUnderBridge(point_a, point_b, self.bridges[_i].points, depth)
                 left_side_1 = [pnt for pnt in left_side if pnt[2] > left_z1 + 20] # Remove water surface points
+                if len(left_side_1) == 0:
+                    left_side_1 = [point_b + [bridge.shape.z[i + 1]]]
                 print("points", len(left_side_1), "Density", len(left_side_1) / (magnitude * 0.5))
                 point_a = [point_a[0] + unit_vector[0] * magnitude * 0.5, point_a[1] + unit_vector[1] * magnitude * 0.5]
                 point_b = [point_a[0] + unit_vector[0] * magnitude * 0.5, point_a[1] + unit_vector[1] * magnitude * 0.5]
                 # Search for points along one side of the bridge, on other shoreline
                 left_side, left_z2 = self.findPointsUnderBridge(point_a, point_b, self.bridges[_i].points, depth)
                 left_side_2 = [pnt for pnt in left_side if pnt[2] > left_z2 + 20]
+                print(len(left_side))
                 print("points", len(left_side_2), "Density", len(left_side_2) / (magnitude * 0.5))
                 point_b = [point_c[0] + unit_vector[0] * magnitude * 0.5, point_c[1] + unit_vector[1] * magnitude * 0.5]
                 # Search for points along other side of the bridge, on one shoreline
                 right_side, right_z1 = self.findPointsUnderBridge(point_c, point_b, self.bridges[_i].points, depth)
+                print(right_side)
                 right_side_1 = [pnt for pnt in right_side if pnt[2] > right_z1 + 20]
                 print("points", len(right_side_1), "Density", len(right_side_1) / (magnitude * 0.5))
                 point_c = [point_c[0] + unit_vector[0] * magnitude * 0.5, point_c[1] + unit_vector[1] * magnitude * 0.5]
                 point_b = [point_c[0] + unit_vector[0] * magnitude * 0.5, point_c[1] + unit_vector[1] * magnitude * 0.5]
                 # Search along the other side of bridge, on other shoreline
                 right_side, right_z2 = self.findPointsUnderBridge(point_c, point_b, self.bridges[_i].points, depth)
+                print(right_side)
                 right_side_2 = [pnt for pnt in right_side if pnt[2] > right_z2 + 20]
                 print("points", len(right_side_2), "Density", len(right_side_2) / (magnitude * 0.5))
                 # Preprocess points (delete outliers and add new points)
@@ -134,83 +139,88 @@ class BridgeReconstructor:
                 bridge_center = [(point_a[0] + point_b[0]) * 0.5, (point_a[1] + point_b[1]) * 0.5]
                 print("Interpolating")
                 print("No of points", len(left_side_1), len(left_side_2), len(right_side_1), len(right_side_2))
-
-                # Finds the highest part of each shoreline, used for vector along the shoreline
-                # to fit bottom face of bridge to terrain
-                right_side_done = 0
-                max_left_z1 = left_side_1[0]
-                max_right_z1 = right_side_1[0]
-                max_left_z2 = left_side_2[0]
-                max_right_z2 = right_side_2[0]
+                max_right_z1 = max_left_z1 = max_right_z2 = max_left_z2 = None
                 # Calculate how many steps in the interpolation (more points = less steps)
                 # But limit between 10 and 30, to not create too many points
                 steps = 10000 / (len(left_side_1) + len(right_side_1))
                 steps = max(10, min(steps, 30))
-                for point in left_side_1:
-                    if point[2] > max_left_z1[2]:
-                        max_left_z1 = point
-                    for point2 in right_side_1:
-                        if right_side_done == 0:
-                            if point2[2] > max_right_z1[2]:
-                                max_right_z1 = point2
-                        dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
-                        if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 200:
-                            point1 = None
-                            point3 = None
-                            if self.interpolation == 1:
-                                dst1 = 999999999
-                                for pnt in left_side_1:
-                                    dst = self.distance(point, pnt)
-                                    if dst1 > dst > 0 and pnt != point:
-                                        point1 = pnt
-                                        dst1 = dst
+                # Only to this in the first bridge segment
+                if len(left_side_1) > 0 and len(right_side_1) > 0 and i == 0:
+                    # Finds the highest part of each shoreline, used for vector along the shoreline
+                    # to fit bottom face of bridge to terrain
+                    right_side_done = 0
+                    max_left_z1 = left_side_1[0]
+                    max_right_z1 = right_side_1[0]
 
-                                dst3 = 999999999
-                                for pnt in right_side_1:
-                                    dst = self.distance(point2, pnt)
-                                    if 0 < dst < dst3 and pnt != point2:
-                                        point3 = pnt
-                                        dst3 = dst
-                                if self.distance(point, point2) > self.distance(point1, point2):
-                                    tmp = point
-                                    point = point1
-                                    point1 = tmp
-                            interpolated_points.extend(self.interpolate(point1, point, point2, point3, steps))
-                    right_side_done = 1
+                    for point in left_side_1:
+                        if point[2] > max_left_z1[2]:
+                            max_left_z1 = point
+                        for point2 in right_side_1:
+                            if right_side_done == 0:
+                                if point2[2] > max_right_z1[2]:
+                                    max_right_z1 = point2
+                            dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
+                            if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 200:
+                                point1 = None
+                                point3 = None
+                                if self.interpolation == 1:
+                                    dst1 = 999999999
+                                    for pnt in left_side_1:
+                                        dst = self.distance(point, pnt)
+                                        if dst1 > dst > 0 and pnt != point:
+                                            point1 = pnt
+                                            dst1 = dst
+
+                                    dst3 = 999999999
+                                    for pnt in right_side_1:
+                                        dst = self.distance(point2, pnt)
+                                        if 0 < dst < dst3 and pnt != point2:
+                                            point3 = pnt
+                                            dst3 = dst
+                                    if self.distance(point, point2) > self.distance(point1, point2):
+                                        tmp = point
+                                        point = point1
+                                        point1 = tmp
+                                interpolated_points.extend(self.interpolate(point1, point, point2, point3, steps))
+                        right_side_done = 1
                 print("Interpolating 1 done")
-                right_side_done = 0
-                steps = 10000 / (len(left_side_2) + len(right_side_2))
-                steps = max(10, min(steps, 30))
-                for point in left_side_2:
-                    if point[2] > max_left_z2[2]:
-                        max_left_z2 = point
-                    for point2 in right_side_2:
-                        if right_side_done == 0 and point2[2] > max_right_z2[2]:
-                            max_right_z2 = point2
-                        dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
-                        if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 200:
-                            point1 = None
-                            point3 = None
-                            if self.interpolation == 1:
-                                dst1 = 999999999
-                                for pnt in left_side_2:
-                                    dst = self.distance(point, pnt)
-                                    if dst1 > dst > 0 and pnt != point:
-                                        point1 = pnt
-                                        dst1 = dst
+                # Only do this in the last section of the bridge
+                if len(left_side_2) > 0 and len(right_side_2) > 0 and i == len(bridge.shape.points) - 2:
+                    max_left_z2 = left_side_2[0]
+                    max_right_z2 = right_side_2[0]
+                    right_side_done = 0
+                    steps = 10000 / (len(left_side_2) + len(right_side_2))
+                    steps = max(10, min(steps, 30))
+                    for point in left_side_2:
+                        if point[2] > max_left_z2[2]:
+                            max_left_z2 = point
+                        for point2 in right_side_2:
+                            if right_side_done == 0 and point2[2] > max_right_z2[2]:
+                                max_right_z2 = point2
+                            dist = self.distance([point[0], point[1]], [point2[0], point2[1]])
+                            if abs(point[2] - point2[2]) < 100 and 0 < dist < width + 200:
+                                point1 = None
+                                point3 = None
+                                if self.interpolation == 1:
+                                    dst1 = 999999999
+                                    for pnt in left_side_2:
+                                        dst = self.distance(point, pnt)
+                                        if dst1 > dst > 0 and pnt != point:
+                                            point1 = pnt
+                                            dst1 = dst
 
-                                dst3 = 999999999
-                                for pnt in right_side_2:
-                                    dst = self.distance(point2, pnt)
-                                    if 0 < dst < dst3 and pnt != point2:
-                                        point3 = pnt
-                                        dst3 = dst
-                                if self.distance(point, point2) > self.distance(point1, point2):
-                                    tmp = point
-                                    point = point1
-                                    point1 = tmp
-                            interpolated_points.extend(self.interpolate(point1, point, point2, point3, steps))
-                    right_side_done = 1
+                                    dst3 = 999999999
+                                    for pnt in right_side_2:
+                                        dst = self.distance(point2, pnt)
+                                        if 0 < dst < dst3 and pnt != point2:
+                                            point3 = pnt
+                                            dst3 = dst
+                                    if self.distance(point, point2) > self.distance(point1, point2):
+                                        tmp = point
+                                        point = point1
+                                        point1 = tmp
+                                interpolated_points.extend(self.interpolate(point1, point, point2, point3, steps))
+                        right_side_done = 1
 
                 # Check on which side of the vector bridge center point lies and use that as a reference
                 side1_center = self.whichSide(max_right_z1, max_left_z1, bridge_center)
@@ -394,9 +404,8 @@ class BridgeReconstructor:
     # Returns 1 if on the right, -1 if left or 0 if on vector
     # https://stackoverflow.com/a/1560510
     def whichSide(self, point_a, point_b, test_point):
-        print(point_a)
-        print(point_b)
-        print(test_point)
+        if point_a is None and point_b is None:
+            return 1
         test = (point_b[0] - point_a[0]) * (test_point[1] - point_a[1]) - \
                (point_b[1] - point_a[1]) * (test_point[0] - point_a[0])
         if test > 0:
@@ -414,6 +423,8 @@ class BridgeReconstructor:
             return math.sqrt((point_a[0] - point_b[0]) ** 2 + (point_a[1] - point_b[1]) ** 2)
 
     def generateNewBoundaryPoints(self, current_list, water_level, bridge_bottom, no_of_new_points=20):
+        if len(current_list) == 0:
+            return current_list
         min_z_point = current_list[0]
         max_z_point = current_list[0]
         # Calculate complete distance traveled from first to last point in list
@@ -427,7 +438,10 @@ class BridgeReconstructor:
                 min_z_point = pnt
             if pnt[2] > max_z_point[2]:
                 max_z_point = pnt
-        points_per_unit = no_of_new_points / complete_distance
+        try:
+            points_per_unit = no_of_new_points / complete_distance
+        except ZeroDivisionError:
+            points_per_unit = 1
         max_z_point[2] = bridge_bottom - 10
         min_z_point[2] = water_level
         current_list.insert(0, max_z_point)
@@ -454,8 +468,6 @@ class BridgeReconstructor:
                     interpolated.append(self.hermiteInterpolate(p1, p2, p3, p4, t / length))
                     t += step
         current_list.extend(interpolated)
-        print(current_list[-1])
-        print(interpolated[-1])
         return current_list
         pnt = max_z_point
         visited = []
@@ -570,7 +582,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         if sys.argv[1] == "hermite":
             interpolation = 1
-    #b = BridgeReconstructor("TM_462_101.laz", "TN_CESTE_L")
-    b = BridgeReconstructor("TM_462_101_short.laz", "CESTE_SHORT", interpolation)
+    b = BridgeReconstructor("TM_462_101.laz", "TN_CESTE_L")
+    #b = BridgeReconstructor("TM_462_101_short.laz", "CESTE_SHORT", interpolation)
     #b = BridgeReconstructor("TM_462_101_short2.laz", "CESTE_SHORT2")
     b.reconstructIt()
