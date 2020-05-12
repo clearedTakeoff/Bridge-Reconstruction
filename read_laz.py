@@ -39,6 +39,7 @@ class LazManipulator:
 
 if __name__ == "__main__":
     l = LazManipulator("TM_462_101.laz")
-    tmp = l.filterPoints(46200403, 10107873, 46206213, 10115060)
+    #tmp = l.filterPoints(46200403, 10107873, 46206213, 10115060)
+    tmp = l.filterPoints(46251892, 10127087, 46264084, 10134049)
     l.points = tmp
-    l.writeListToFile(tmp, "TM_462_101_short2.laz")
+    l.writeListToFile(tmp, "TM_462_101_short3.laz")

@@ -3,52 +3,28 @@ from read_shapefile import ShapefileReader
 from bridge import Bridge
 import math
 import sys
-import numpy as np
 
 class BridgeReconstructor:
 
-    def __init__(self, laz_file, shp_file, interpolation=0):
+    def __init__(self, laz_file, shp_file, output, interpolation=0):
         self.interpolation = interpolation  # if 0 cosine interpolation, if 1 hermite interpolation
         self.laz = LazManipulator(laz_file)
+        self.output = output
         shp = ShapefileReader(shp_file)
         self.bridges_shp = shp.bridgesInsideCoords(self.laz.x_min, self.laz.y_min, self.laz.x_max, self.laz.y_max)
         self.bridges = [Bridge(br) for br in self.bridges_shp]
-        # shp.writeBridges(self.laz.x_min, self.laz.y_min, self.laz.x_max, self.laz.y_max, "CESTE_SHORT2")
-        # self.points = self.getRelevantLazPoints(self.bridges_shp, self.laz.laz)
+        # shp.writeBridges(self.laz.x_min, self.laz.y_min, self.laz.x_max, self.laz.y_max, "CESTE_SHORT3")
         print("Reading points now")
-        self.points = self.getRelevantLazPoint2(self.bridges, self.laz.laz)
-        for br in self.bridges:
-            print("Found", len(br.points), "points")
+        self.points = self.getRelevantLazPoints(self.bridges, self.laz.laz)
+        # for br in self.bridges:
+            # print("Found", len(br.points), "points")
 
-    def getRelevantLazPoint2(self, bridges, laz):
+    def getRelevantLazPoints(self, bridges, laz):
         result = []
         for pnt in laz.points:
             for br in bridges:
                 if br.isRelevant(pnt):
                     result.append(pnt)
-        return result
-
-    def getRelevantLazPoints(self, bridges, laz):
-        result = []
-        for i in bridges:
-            current_points = []
-            for j in range(len(i.shape.points) - 1):
-                point_a = list(i.shape.points[j]) + [i.shape.z[j]]
-                point_a = [x * 100 for x in point_a]
-                point_b = list(i.shape.points[j + 1]) + [i.shape.z[j + 1]]
-                point_b = [x * 100 for x in point_b]
-                magnitude = math.sqrt((point_a[0] - point_b[0]) * (point_a[0] - point_b[0]) +
-                                      (point_a[1] - point_b[1]) * (point_a[1] - point_b[1]))
-                unit_vector = [(point_b[0] - point_a[0]) / magnitude, (point_b[1] - point_a[1]) / magnitude]
-
-                point_a, point_c = self.findThirdPoint(point_a[0] - 150 * unit_vector[0], point_a[1] - 150 * unit_vector[1], point_b[0], point_b[1],
-                                                       (i.record["SIRCES"] + 5) * 100)
-                point_b = [point_a[0] + unit_vector[0] * magnitude, point_a[1] + unit_vector[1] * magnitude]
-                point_b = [point_b[0] + 150 * unit_vector[0], point_b[1] + 150 * unit_vector[1]]
-                tmp = [pnt for pnt in laz.points if self.isInsideRect(point_a, point_b, point_c, [pnt[0], pnt[1]])]
-                current_points.extend(tmp)
-            print("For bridge found", len(current_points), "points")
-            result.append(current_points)
         return result
 
     # Check if point test_point is inside a rectangle defined by points p1, p2, p3
@@ -71,7 +47,7 @@ class BridgeReconstructor:
         added_points = []
         for _i in range(len(self.bridges_shp)):
             bridge = self.bridges_shp[_i]
-            print("Reconstructing new one")
+            print("Reconstructing new bridge")
             width = bridge.record["SIRCES"] * 100
             first_point = [i * 100 for i in bridge.shape.points[0]]
             last_point = [i * 100 for i in bridge.shape.points[-1]]
@@ -96,30 +72,23 @@ class BridgeReconstructor:
                 # Get points along one side of the bridge on one shoreline, returns list of points +
                 # lowest z found (water surface)
                 left_side, left_z1 = self.findPointsUnderBridge(point_a, point_b, self.bridges[_i].points, depth)
-                left_side_1 = [pnt for pnt in left_side if pnt[2] > left_z1 + 20] # Remove water surface points
+                left_side_1 = [pnt for pnt in left_side if pnt[2] > left_z1 + 40] # Remove water surface points
                 if len(left_side_1) == 0:
                     left_side_1 = [point_b + [bridge.shape.z[i + 1]]]
-                print("points", len(left_side_1), "Density", len(left_side_1) / (magnitude * 0.5))
                 point_a = [point_a[0] + unit_vector[0] * magnitude * 0.5, point_a[1] + unit_vector[1] * magnitude * 0.5]
                 point_b = [point_a[0] + unit_vector[0] * magnitude * 0.5, point_a[1] + unit_vector[1] * magnitude * 0.5]
                 # Search for points along one side of the bridge, on other shoreline
                 left_side, left_z2 = self.findPointsUnderBridge(point_a, point_b, self.bridges[_i].points, depth)
-                left_side_2 = [pnt for pnt in left_side if pnt[2] > left_z2 + 20]
-                print(len(left_side))
-                print("points", len(left_side_2), "Density", len(left_side_2) / (magnitude * 0.5))
+                left_side_2 = [pnt for pnt in left_side if pnt[2] > left_z2 + 40]
                 point_b = [point_c[0] + unit_vector[0] * magnitude * 0.5, point_c[1] + unit_vector[1] * magnitude * 0.5]
                 # Search for points along other side of the bridge, on one shoreline
                 right_side, right_z1 = self.findPointsUnderBridge(point_c, point_b, self.bridges[_i].points, depth)
-                print(right_side)
-                right_side_1 = [pnt for pnt in right_side if pnt[2] > right_z1 + 20]
-                print("points", len(right_side_1), "Density", len(right_side_1) / (magnitude * 0.5))
+                right_side_1 = [pnt for pnt in right_side if pnt[2] > right_z1 + 40]
                 point_c = [point_c[0] + unit_vector[0] * magnitude * 0.5, point_c[1] + unit_vector[1] * magnitude * 0.5]
                 point_b = [point_c[0] + unit_vector[0] * magnitude * 0.5, point_c[1] + unit_vector[1] * magnitude * 0.5]
                 # Search along the other side of bridge, on other shoreline
                 right_side, right_z2 = self.findPointsUnderBridge(point_c, point_b, self.bridges[_i].points, depth)
-                print(right_side)
-                right_side_2 = [pnt for pnt in right_side if pnt[2] > right_z2 + 20]
-                print("points", len(right_side_2), "Density", len(right_side_2) / (magnitude * 0.5))
+                right_side_2 = [pnt for pnt in right_side if pnt[2] > right_z2 + 40]
                 # Preprocess points (delete outliers and add new points)
                 right_side_1, right_side_2, \
                 left_side_1, left_side_2 = self.preprocessBoundaryPoints(right_side_1, right_z1, right_side_2,
@@ -127,7 +96,6 @@ class BridgeReconstructor:
                                                                          left_z2, depth, 0.5 * magnitude)
 
                 interpolated_points = []
-                # TESTING THIS DELETE later (or not???)
                 point_a = list(bridge.shape.points[i]) + [bridge.shape.z[i]]
                 point_a = [x * 100 for x in point_a]
                 point_b = list(bridge.shape.points[i + 1]) + [bridge.shape.z[i + 1]]
@@ -137,8 +105,6 @@ class BridgeReconstructor:
                 points_under_bridge = [pnt for pnt in self.bridges[_i].points if
                                        self.isInsideRect(point_a, point_b, point_c, [pnt[0], pnt[1]])]
                 bridge_center = [(point_a[0] + point_b[0]) * 0.5, (point_a[1] + point_b[1]) * 0.5]
-                print("Interpolating")
-                print("No of points", len(left_side_1), len(left_side_2), len(right_side_1), len(right_side_2))
                 max_right_z1 = max_left_z1 = max_right_z2 = max_left_z2 = None
                 # Calculate how many steps in the interpolation (more points = less steps)
                 # But limit between 10 and 30, to not create too many points
@@ -183,7 +149,6 @@ class BridgeReconstructor:
                                         point1 = tmp
                                 interpolated_points.extend(self.interpolate(point1, point, point2, point3, steps))
                         right_side_done = 1
-                print("Interpolating 1 done")
                 # Only do this in the last section of the bridge
                 if len(left_side_2) > 0 and len(right_side_2) > 0 and i == len(bridge.shape.points) - 2:
                     max_left_z2 = left_side_2[0]
@@ -226,11 +191,6 @@ class BridgeReconstructor:
                 side1_center = self.whichSide(max_right_z1, max_left_z1, bridge_center)
                 side2_center = self.whichSide(max_right_z2, max_left_z2, bridge_center)
                 for point in points_under_bridge:
-                    max_z = 0
-                    #z_limits = [pnt[2] for pnt in interpolated_points if math.sqrt((pnt[0] - point[0]) ** 2 +
-                    #                                                               (pnt[1] - point[1]) ** 2) < 50]
-                    #if len(z_limits) > 0:
-                    #    max_z = max(z_limits)
                     # Calculate z value (especially visible in ascending or descending bridge)
                     depth = bridge.shape.z[i] * 100 + (self.findProjection(point_a, point_b, point) / step_size) * z_step
                     testTerrain1 = self.whichSide(max_right_z1, max_left_z1, point)
@@ -241,10 +201,6 @@ class BridgeReconstructor:
                         added_points.append((point[0], point[1], depth - thickness, 20, 82, 65, 32, 0, 2418, 109863062.84541322))
                     # Adding a point on surface of the bridge
                     added_points.append((point[0], point[1], depth, 20, 82, 65, 32, 0, 2418, 109863062.84541322))
-                    # Existing points on the bridge re-added for testing with new classification
-                    # added_points.append((point[0], point[1], point[2] + 1, 20, 82, 65, 32, 0, 2418, 109863062.84541322))
-                    # else:
-                    #   added_points.append((point[0], point[1], depth, 20, 82, 65, 32, 0, 2418, 109863062.84541322))
 
                 point_a = list(bridge.shape.points[i]) + [bridge.shape.z[i]]
                 point_a = [x * 100 for x in point_a]
@@ -257,41 +213,23 @@ class BridgeReconstructor:
                     point_a[2] += z_step
                     point_c, point_c2 = self.findThirdPoint(point_a[0], point_a[1], point_b[0], point_b[1],
                                                             width / 2)
-                    # Find relevant points at current (x,y) position and check their z value
-                    z_limit = None
-                    #z_limits = [pnt[2] for pnt in interpolated_points if math.sqrt((pnt[0] - point_c[0]) ** 2 +
-                    #                                                           (pnt[1] - point_c[1]) ** 2) < 100
-                    #            and pnt[2] < point_a[2] - 90]
-                    #if len(z_limits) > 0:
-                    #    z_limit = max(z_limits)
-                    z_limit2 = None
-                    #z_limits2 = [pnt[2] for pnt in interpolated_points if math.sqrt((pnt[0] - point_c2[0]) ** 2 +
-                    #                                                            (pnt[1] - point_c2[1]) ** 2) < 100
-                    #            and pnt[2] < point_a[2] - 90]
-                    #if len(z_limits2) > 0:
-                    #    z_limit2 = max(z_limits2)
                     for depth in range(0, thickness, 15):
-                        if z_limit is not None and point_a[2] - depth > z_limit:
+                        testTerrain1 = self.whichSide(max_right_z1, max_left_z1, point_c)
+                        testTerrain2 = self.whichSide(max_right_z2, max_left_z2, point_c)
+                        if testTerrain1 == side1_center and testTerrain2 == side2_center:
                             added_points.append((point_c[0], point_c[1], point_a[2] - depth, 20, 82, 65, 32, 0, 2418,
-                                                 109863062.84541322))
-                        elif z_limit is None:
-                            added_points.append((point_c[0], point_c[1], point_a[2] - depth, 20, 82, 65, 32, 0, 2418,
-                                                 109863062.84541322))
-                        if z_limit2 is not None and point_a[2] - depth > z_limit2:
+                                                109863062.84541322))
+
+                        testTerrain1 = self.whichSide(max_right_z1, max_left_z1, point_c2)
+                        testTerrain2 = self.whichSide(max_right_z2, max_left_z2, point_c2)
+                        if testTerrain1 == side1_center and testTerrain2 == side2_center:
                             added_points.append((point_c2[0], point_c2[1], point_a[2] - depth, 20, 82, 65, 32, 0, 2418,
                                                  109863062.84541322))
-                        elif z_limit2 is None:
-                            added_points.append((point_c2[0], point_c2[1], point_a[2] - depth, 20, 82, 65, 32, 0, 2418,
-                                                 109863062.84541322))
-                ##interpolated_points.extend(left_side)
-                #interpolated_points.extend(right_side)
-                print("Interpolated", len(interpolated_points))
                 for point in interpolated_points:
                     added_points.append((point[0], point[1], point[2], 20, 82, 65, 32, 0, 2418, 109863062.84541322))
                     #added_points.append((point[0], point[1], point[2] + 1, 20, 82, 65, 32, 0, 2418, 109863062.84541322))
-        print(len(added_points))
         print("Construction finished, writing...")
-        self.laz.writeListToFile(added_points, "test.laz")
+        self.laz.writeListToFile(added_points, self.output)
 
     # Function that generates new points between point_a and point_b. If point_0 and point_1 are also given it uses
     # Hermite interpolation, else only cosine interpolation
@@ -430,7 +368,6 @@ class BridgeReconstructor:
         # Calculate complete distance traveled from first to last point in list
         # Used to calculate how many new points to insert based on distance and no. of new points needed
         complete_distance = 0
-        print("Current list", len(current_list))
         for i in range(1, len(current_list)):
             pnt = current_list[i]
             complete_distance += self.distance(pnt, current_list[i - 1])
@@ -452,7 +389,6 @@ class BridgeReconstructor:
         current_list.append(min_z_point)
         min_z_point[2] -= 10
         current_list.append(min_z_point)
-        print("MIn z", water_level)
         interpolated = []
         for i in range(1, len(current_list) - 2):
             p1 = current_list[i - 1]
@@ -468,46 +404,6 @@ class BridgeReconstructor:
                     interpolated.append(self.hermiteInterpolate(p1, p2, p3, p4, t / length))
                     t += step
         current_list.extend(interpolated)
-        return current_list
-        pnt = max_z_point
-        visited = []
-        while pnt is not None:
-            closest = (999999999, None)
-            for neighbor in current_list:
-                if neighbor != pnt and neighbor not in visited:
-                    dist = self.distance(pnt, neighbor)
-                    if dist < closest[0]:
-                        closest = (dist, neighbor)
-            #pnt_to_closest = [closest[0] - pnt[0], closest[1] - pnt[1], closest[2] - pnt[2]]
-            #magnitude = math.sqrt(pnt_to_closest[0] * pnt_to_closest[0] + pnt_to_closest[1] * pnt_to_closest[1] + pnt_to_closest[2] * pnt_to_closest[2])
-            #unit_vector = [pnt_to_closest[0] / magnitude, pnt_to_closest[1] / magnitude, pnt_to_closest[2] / magnitude]
-            #aux_pnt1 = [pnt[0] - unit_vector[0], pnt[1] - unit_vector[1], pnt[2] - unit_vector[2]]
-            if closest[1] is not None:
-                length = closest[0]
-                no_of_points = length // 10
-                if no_of_points > 5:
-                    print("Generating", no_of_points)
-                    step = length / no_of_points
-                    t = 0
-                    #aux_pnt2 = [closest[1][0] + unit_vector[0], closest[1][1] + unit_vector[1], closest[1][2] + unit_vector[2]]
-                    while t < length:
-                        interpolated.append(self.cosInterpolate(pnt, closest[1], t / length))
-                        t += step
-            visited.append(pnt)
-            pnt = closest[1]
-        print("Finished interpolating")
-        return interpolated
-        step = length / no_of_new_points
-        t = 0
-        while t < length:
-            current_list.append(self.cosInterpolate(avg_point, min_z_point, t/length))
-            t += step
-        return current_list
-
-        print(avg_point)
-        while water_level < bridge_bottom:
-            water_level += 20
-            current_list.append([avg_point[0], avg_point[1], water_level])
         return current_list
 
     def removeOutliers(self, cloud):
@@ -542,27 +438,6 @@ class BridgeReconstructor:
                 to_remove.append(pnt[1])
         return [point for point in cloud if point not in to_remove]
 
-    def removeOutliers2(self, cloud):
-        to_remove = []
-        dist_to_neighbors = []
-        avg_dist = 0
-        count = 0
-        for pnt in cloud:
-            current_avg = 0
-            for pnt2 in cloud:
-                if pnt2 != pnt:
-                    current_avg += self.distance(pnt, pnt2)
-                    count += 1
-            dist_to_neighbors.append((current_avg / (len(cloud) - 1), pnt))
-            avg_dist += current_avg
-        avg_dist /= count
-        for pnt in dist_to_neighbors:
-            print(pnt[0], "----", avg_dist)
-            if pnt[0] > 1 * avg_dist:
-                to_remove.append(pnt[1])
-        print("Removing", len(to_remove))
-        return [point for point in cloud if point not in to_remove]
-
     def findPointsUnderBridge(self, point_a, point_b, laz_points, depth):
         tmp1 = []
         z = laz_points[0][2]
@@ -570,19 +445,36 @@ class BridgeReconstructor:
             if pnt[2] < depth and self.isCloseToVector(point_a, point_b, pnt, 250):
                 tmp1.append(pnt)
                 z = min(z, pnt[2])
-            #tmp1 = [pnt for pnt in laz_points if pnt[2] < depth and
-            #        self.isCloseToVector(point_a, point_b, pnt, 250)]
-        print("Found", len(tmp1), "points")
-        print("Minimum is", z)
         return tmp1, z
 
 
 if __name__ == "__main__":
+    # Default  values
     interpolation = 0
+    output = "test.laz"
+    input_laz = "TM_462_101.laz"
+    input_shp = "TN_CESTE_L"
+    #input_laz = "TM_462_101_short.laz"
+    #input_shp = "CESTE_SHORT"
+    #input_laz = "TM_462_101_short2.laz"
+    #input_shp = "CESTE_SHORT2"
+    #input_laz = "TM_462_101_short3.laz"
+    #input_shp = "CESTE_SHORT3"
+    # Parse command line arguments
     if len(sys.argv) > 1:
-        if sys.argv[1] == "hermite":
-            interpolation = 1
-    b = BridgeReconstructor("TM_462_101.laz", "TN_CESTE_L")
-    #b = BridgeReconstructor("TM_462_101_short.laz", "CESTE_SHORT", interpolation)
-    #b = BridgeReconstructor("TM_462_101_short2.laz", "CESTE_SHORT2")
+        for i in range(1, len(sys.argv) - 1, 2):
+            opt = sys.argv[i]
+            arg = sys.argv[i + 1]
+            if opt == "-l":
+                input_laz = arg
+            elif opt == "-s":
+                input_shp = arg
+            elif opt == "-i":
+                if arg == "hermite":
+                    interpolation = 1
+                else:
+                    interpolation = 0
+            elif opt == "-o":
+                output = arg
+    b = BridgeReconstructor(input_laz, input_shp, output, interpolation)
     b.reconstructIt()
