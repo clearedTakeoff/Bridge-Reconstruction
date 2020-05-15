@@ -41,7 +41,7 @@ laszip.dll, laszip.exe, laszip64.dll, laszip64.exe.
 
 ## Results
 Because of the size of the complete point cloud, the results coupled with input files are 
-archived and available to download [here](placeholder). Because most of the runtime is used for 
+archived and available to download [here](https://www.dropbox.com/s/oc3if4qafiafzab/bridgeoutput.zip?dl=0). Since most of the runtime is used for 
 reading the whole file I also provided point clouds (and shapefiles) with smaller area that only include one 
 bridge for faster testing and execution (available in the same archive inside folders bridge1, 
-bridge2, bridge3).
+bridge2, bridge3).ł
